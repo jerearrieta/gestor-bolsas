@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# JFA Bolsas · Sistema de gestión
 
-## Getting Started
+App web para administrar el taller de bolsas de lienzo: pedidos, clientes, catálogo y precios, finanzas, calculadora de costos y avisos por WhatsApp. Funciona en el celular y en la compu.
 
-First, run the development server:
+Hecha con **Next.js 16** (App Router, TypeScript), **Tailwind CSS 4** y **Supabase** (base de datos + login). Entra completa en el plan gratuito de Supabase y de Vercel.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Qué hace
+
+| Sección | Para qué sirve |
+| --- | --- |
+| **Inicio** | Ingresos, gastos y ganancia del mes, plata por cobrar, pedidos listos (con botón para avisar por WhatsApp), próximas entregas y alerta de pedidos atrasados. |
+| **Pedidos** | Cargar pedidos con varios productos, envío, descuento y seña. Seguir el avance (Pendiente → En producción → Listo → Entregado), registrar pagos y ver cuánto falta cobrar. Se puede crear el cliente desde el mismo pedido. |
+| **Clientes** | Directorio con teléfono, email, dirección de envío y notas. Historial de pedidos, total comprado y deuda de cada cliente. Botones para escribir por WhatsApp o llamar. |
+| **Catálogo** | Lista de productos con cambio de precio en un toque y **aumento masivo** (ej. +10% con redondeo a $50). Muestra el margen real de cada bolsa. |
+| **Calculadora** | Ponés cuánto cuesta el metro de lienzo y el margen que querés ganar, y calcula el costo y el **precio de venta sugerido** de cada bolsa (con botón “Aplicar”). Incluye una calculadora rápida para presupuestar. |
+| **Finanzas** | Ingresos y gastos por mes, ganancia real y en qué categorías se fue la plata. Los pagos de pedidos se suman solos. |
+| **WhatsApp** | Botón “Avisar que el pedido está listo” que abre WhatsApp (web o app) con el mensaje ya escrito, usando enlaces gratuitos `wa.me`. El mensaje se edita en **Ajustes**. |
+
+### Cómo calcula el precio sugerido
+
+```
+costo por bolsa = metros de lienzo × precio del metro + otros costos (hilo, manijas, estampado, tu tiempo…)
+precio sugerido = costo ÷ (1 − margen)        → redondeado hacia arriba a $10
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ejemplo: lienzo a $4.000 el metro, bolsa de 0,5 m y $800 de otros costos → costo $2.800. Con 50% de margen el precio sugerido es $5.600 (de cada $5.600, $2.800 son ganancia).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Teléfonos
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Cargá los números como los anotás normalmente (`11 2345 6789`, `011 15-2345-6789`, `+54 9 11…`). La app los convierte al formato de WhatsApp (`5491123456789`), sacando el 0 y el 15. Para otro país, cambiá el código en **Ajustes**.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Puesta en marcha
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 1. Crear el proyecto en Supabase
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Entrá a [supabase.com](https://supabase.com), creá una cuenta y un **New project** (plan Free). Elegí la región más cercana (ej. São Paulo).
+2. Abrí **SQL Editor → New query**, pegá todo el contenido de [`supabase/migrations/0001_inicial.sql`](supabase/migrations/0001_inicial.sql) y tocá **Run**. Crea las tablas, la seguridad (cada usuario sólo ve sus datos) y las funciones.
+3. Creá tu usuario: **Authentication → Users → Add user → Create new user**, con tu email y una contraseña, marcando **Auto Confirm User**.
+4. Recomendado: en **Authentication → Sign In / Providers → Email**, desactivá **Allow new users to sign up** para que nadie más pueda registrarse.
+5. En **Project Settings → API** copiá la **Project URL** y la **anon / publishable key**.
 
-## Deploy on Vercel
+### 2. Correr la app en tu compu
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Necesitás [Node.js](https://nodejs.org) 20 o superior.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm install
+cp .env.example .env.local   # y completá las dos variables con los datos del paso 1.5
+npm run dev
+```
+
+Abrí <http://localhost:3000> e ingresá con el usuario que creaste.
+
+### 3. Publicarla en internet (Vercel, gratis)
+
+1. Subí este código a un repositorio de GitHub.
+2. Entrá a [vercel.com](https://vercel.com) → **Add New → Project** → importá el repositorio.
+3. En **Environment Variables** agregá `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` con los mismos valores.
+4. **Deploy**. En un par de minutos tenés la URL (ej. `jfa-bolsas.vercel.app`).
+5. Tip: en el celular, abrí la URL y elegí “Agregar a pantalla de inicio” para usarla como una app.
+
+---
+
+## Para desarrolladores
+
+```bash
+npm run dev     # servidor de desarrollo
+npm run build   # build de producción
+npm run lint    # ESLint
+```
+
+- `src/app/(app)/` — pantallas (inicio, pedidos, clientes, catálogo, finanzas, ajustes). Cada módulo tiene su `actions.ts` con las Server Actions.
+- `src/app/login/` — ingreso con email y contraseña (Supabase Auth).
+- `src/proxy.ts` — refresca la sesión y redirige al login si no hay usuario.
+- `src/lib/` — cliente de Supabase, formato de moneda/fechas, cálculo de precios y enlaces de WhatsApp.
+- `supabase/migrations/` — esquema SQL. La vista `pedidos_resumen` calcula total, pagado y saldo de cada pedido.
+
+**Supabase local (opcional):** con Docker instalado, `npx supabase start` levanta una base local con la migración aplicada; usá la URL y la `ANON_KEY` que muestra en `.env.local`.
