@@ -37,11 +37,21 @@ pedidos.get("/opciones", async (_req, res) => {
   const { supabase } = sesion(res);
   const [{ data: clientes }, { data: productos }] = await Promise.all([
     supabase.from("clientes").select("id, nombre, telefono, direccion, localidad").order("nombre"),
-    supabase.from("productos").select("id, nombre, precio").eq("activo", true).order("nombre"),
+    supabase
+      .from("productos")
+      .select("id, nombre, medidas:producto_medidas(id, medida, precio, posicion)")
+      .eq("activo", true)
+      .order("nombre"),
   ]);
   res.json({
     clientes: clientes ?? [],
-    productos: (productos ?? []).map((p) => ({ ...p, precio: Number(p.precio) })),
+    productos: (productos ?? []).map((p) => ({
+      id: p.id,
+      nombre: p.nombre,
+      medidas: [...(p.medidas ?? [])]
+        .sort((a, b) => a.posicion - b.posicion)
+        .map((m) => ({ id: m.id, medida: m.medida, precio: Number(m.precio) })),
+    })),
     hoy: hoyISO(),
   });
 });
@@ -80,6 +90,7 @@ const esquemaPedido = z.object({
     .array(
       z.object({
         producto_id: z.string().uuid().nullable().optional(),
+        medida_id: z.string().uuid().nullable().optional(),
         descripcion: z.string().trim().min(1, { error: "Cada producto necesita una descripción." }),
         cantidad: z.coerce.number().int({ error: "La cantidad tiene que ser un número entero." }).positive({ error: "La cantidad tiene que ser mayor a 0." }),
         precio_unitario: monto,
@@ -129,7 +140,7 @@ async function guardar(res: Parameters<typeof sesion>[0], cuerpo: unknown, id?: 
 
   const { error: errorItems } = await supabase
     .from("pedido_items")
-    .insert(items.map((i, posicion) => ({ ...i, producto_id: i.producto_id ?? null, posicion, pedido_id: pedidoId })));
+    .insert(items.map((i, posicion) => ({ ...i, producto_id: i.producto_id ?? null, medida_id: i.medida_id ?? null, posicion, pedido_id: pedidoId })));
   if (errorItems) {
     if (!id) await supabase.from("pedidos").delete().eq("id", pedidoId);
     throw new ErrorHttp(400, `No se pudieron guardar los productos: ${errorItems.message}`);

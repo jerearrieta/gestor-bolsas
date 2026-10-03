@@ -7,11 +7,11 @@ import { useTitulo } from "../../lib/titulo";
 import { Boton } from "../../components/botones";
 import { Aviso, Encabezado, EstadoCarga } from "../../components/ui";
 import { dinero } from "../../lib/formato";
-import { ESTADOS, type EstadoPedido } from "../../lib/tipos";
+import { ESTADOS, nombreConMedida, type EstadoPedido } from "../../lib/tipos";
 
 type ClienteOpcion = { id: string; nombre: string; telefono: string | null; direccion: string | null; localidad: string | null };
-type ProductoOpcion = { id: string; nombre: string; precio: number };
-type Item = { clave: number; producto_id: string; descripcion: string; cantidad: string; precio_unitario: string };
+type ProductoOpcion = { id: string; nombre: string; medidas: { id: string; medida: string; precio: number }[] };
+type Item = { clave: number; producto_id: string; medida_id: string; descripcion: string; cantidad: string; precio_unitario: string };
 
 type PedidoInicial = {
   id: string;
@@ -23,7 +23,7 @@ type PedidoInicial = {
   costo_envio: number;
   descuento: number;
   notas: string | null;
-  items: { producto_id: string | null; descripcion: string; cantidad: number; precio_unitario: number }[];
+  items: { producto_id: string | null; medida_id: string | null; descripcion: string; cantidad: number; precio_unitario: number }[];
 };
 
 function n(v: string) {
@@ -62,7 +62,7 @@ export function EditarPedido() {
 }
 
 let siguiente = 1;
-const itemVacio = (): Item => ({ clave: siguiente++, producto_id: "", descripcion: "", cantidad: "1", precio_unitario: "" });
+const itemVacio = (): Item => ({ clave: siguiente++, producto_id: "", medida_id: "", descripcion: "", cantidad: "1", precio_unitario: "" });
 
 function FormularioPedido({
   clientes,
@@ -90,6 +90,7 @@ function FormularioPedido({
       ? pedido.items.map((i) => ({
           clave: siguiente++,
           producto_id: i.producto_id ?? "",
+          medida_id: i.medida_id ?? "",
           descripcion: i.descripcion,
           cantidad: String(i.cantidad),
           precio_unitario: String(i.precio_unitario),
@@ -124,6 +125,7 @@ function FormularioPedido({
       sena: f.get("sena") ?? 0,
       items: validos.map((i) => ({
         producto_id: i.producto_id || null,
+        medida_id: i.medida_id || null,
         descripcion: i.descripcion,
         cantidad: n(i.cantidad),
         precio_unitario: i.precio_unitario,
@@ -139,9 +141,15 @@ function FormularioPedido({
     setItems((prev) => prev.map((i) => (i.clave === clave ? { ...i, ...cambios } : i)));
   }
 
-  function elegirProducto(clave: number, productoId: string) {
-    const p = productos.find((x) => x.id === productoId);
-    cambiarItem(clave, p ? { producto_id: p.id, descripcion: p.nombre, precio_unitario: String(p.precio) } : { producto_id: "" });
+  function elegirMedida(clave: number, medidaId: string) {
+    for (const p of productos) {
+      const m = p.medidas.find((x) => x.id === medidaId);
+      if (m) {
+        cambiarItem(clave, { producto_id: p.id, medida_id: m.id, descripcion: nombreConMedida(p.nombre, m.medida), precio_unitario: String(m.precio) });
+        return;
+      }
+    }
+    cambiarItem(clave, { producto_id: "", medida_id: "" });
   }
 
   function elegirCliente(id: string) {
@@ -204,12 +212,16 @@ function FormularioPedido({
                 )}
               </div>
               <div className="grid gap-2 sm:grid-cols-[1.2fr_1.5fr]">
-                <select value={item.producto_id} onChange={(e) => elegirProducto(item.clave, e.target.value)} className="campo" aria-label="Producto del catálogo">
+                <select value={item.medida_id} onChange={(e) => elegirMedida(item.clave, e.target.value)} className="campo" aria-label="Producto del catálogo">
                   <option value="">Elegir del catálogo…</option>
                   {productos.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nombre} · {dinero(p.precio)}
-                    </option>
+                    <optgroup key={p.id} label={p.nombre}>
+                      {p.medidas.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {nombreConMedida(p.nombre, m.medida)} · {dinero(m.precio)}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
                 <input value={item.descripcion} onChange={(e) => cambiarItem(item.clave, { descripcion: e.target.value })} className="campo" placeholder="Descripción (color, estampa, medida…)" aria-label="Descripción" />
