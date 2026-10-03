@@ -4,7 +4,7 @@ import { Ban, CalendarClock, Check, MapPin, MessageCircle, Pencil, Phone, Sticky
 import { api } from "../../lib/api";
 import { useDatos, useEnvio } from "../../lib/datos";
 import { useTitulo } from "../../lib/titulo";
-import { dinero, fechaCorta } from "../../lib/formato";
+import { dinero, fechaCorta, numero } from "../../lib/formato";
 import { FLUJO, estadoCobro, infoEstado, type EstadoPedido, type Movimiento, type PedidoItem, type PedidoResumen } from "../../lib/tipos";
 import { Aviso, Encabezado, EstadoBadge, EstadoCarga, Tarjeta, TituloSeccion } from "../../components/ui";
 import { Boton } from "../../components/botones";
@@ -148,7 +148,7 @@ export function DetallePedido() {
             <dl className="mt-2 space-y-1.5 border-t border-stone-200 pt-3 text-sm">
               <Linea etiqueta="Subtotal" valor={dinero(pedido.subtotal)} />
               {Number(pedido.costo_envio) > 0 && <Linea etiqueta="Envío" valor={dinero(pedido.costo_envio)} />}
-              {Number(pedido.descuento) > 0 && <Linea etiqueta="Descuento" valor={`− ${dinero(pedido.descuento)}`} />}
+              {Number(pedido.descuento) > 0 && <Linea etiqueta={pedido.descuento_porcentaje ? `Descuento (${numero(pedido.descuento_porcentaje)}%)` : "Descuento"} valor={`− ${dinero(pedido.descuento)}`} />}
               <Linea etiqueta="Total" valor={dinero(pedido.total)} fuerte />
               <Linea etiqueta="Pagado" valor={dinero(pedido.pagado)} />
               <Linea etiqueta={saldo > 0 ? "Falta cobrar" : "Saldo"} valor={dinero(Math.max(saldo, 0))} fuerte clase={saldo > 0 ? "text-rose-700" : "text-emerald-700"} />

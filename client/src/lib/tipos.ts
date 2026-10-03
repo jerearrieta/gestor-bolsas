@@ -86,6 +86,7 @@ export type PedidoResumen = {
   direccion_envio: string | null;
   costo_envio: number;
   descuento: number;
+  descuento_porcentaje: number | null;
   notas: string | null;
   subtotal: number;
   unidades: number;
