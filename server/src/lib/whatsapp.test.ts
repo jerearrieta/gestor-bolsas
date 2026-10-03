@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizarTelefono } from "./whatsapp.js";
 import { costoBolsa, precioSugerido, redondearPrecio } from "./precios.js";
+import { textoListaPrecios } from "./mensajes.js";
 
 test("normaliza teléfonos argentinos para wa.me", () => {
   const casos: [string, string | null][] = [
@@ -22,4 +23,20 @@ test("precio sugerido según margen sobre el precio", () => {
   assert.equal(costo, 2800);
   assert.equal(redondearPrecio(precioSugerido(costo, 50)), 5600);
   assert.equal(precioSugerido(0, 50), 0);
+});
+
+test("arma la lista de precios para WhatsApp", () => {
+  const texto = textoListaPrecios(
+    [
+      { nombre: "Marinera", medidas: [{ medida: "10x10", precio: 1500 }, { medida: "20x20", precio: 2000 }] },
+      { nombre: "Totebag", medidas: [{ medida: "", precio: 3000 }] },
+      { nombre: "Sin medidas", medidas: [] },
+    ],
+    "JFA Bolsas",
+    "Ana",
+  );
+  assert.match(texto, /^¡Hola Ana! Te paso la lista de precios actualizada de JFA Bolsas:/);
+  assert.match(texto, /\*Marinera\*\n• 10x10: \$\s1\.500\n• 20x20: \$\s2\.000/);
+  assert.match(texto, /\*Totebag\*: \$\s3\.000/);
+  assert.doesNotMatch(texto, /Sin medidas/);
 });

@@ -4,6 +4,8 @@ import { sesion } from "../supabase.js";
 import { obtenerAjustes, type Ajustes } from "../lib/ajustes.js";
 import { noEncontrado, siFalla } from "../lib/errores.js";
 import { monto, texto } from "../lib/esquemas.js";
+import { textoListaPrecios } from "../lib/mensajes.js";
+import { enlaceWhatsApp } from "../lib/whatsapp.js";
 import { costoBolsa, margenReal, precioSugerido, redondearPrecio } from "../lib/precios.js";
 
 export const productos = Router();
@@ -46,6 +48,32 @@ productos.get("/", async (req, res) => {
     productos: ((data ?? []) as Producto[]).map((p) => conCalculos(p, ajustes)),
     precio_metro_lienzo: ajustes.precio_metro_lienzo,
     margen_objetivo: ajustes.margen_objetivo,
+  });
+});
+
+/** Lista de precios de los productos activos y un enlace de WhatsApp por cliente para mandársela. */
+productos.get("/lista-precios", async (_req, res) => {
+  const { supabase } = sesion(res);
+  const [{ data, error }, { data: clientes, error: e2 }, ajustes] = await Promise.all([
+    supabase.from("productos").select(CAMPOS).eq("activo", true).order("nombre"),
+    supabase.from("clientes").select("id, nombre, telefono").order("nombre"),
+    obtenerAjustes(supabase),
+  ]);
+  siFalla(error, "No se pudieron leer los productos");
+  siFalla(e2, "No se pudieron leer los clientes");
+  const lista = ((data ?? []) as Producto[]).map((p) => ({
+    nombre: p.nombre,
+    medidas: [...(p.medidas ?? [])].sort((x, y) => x.posicion - y.posicion).map((m) => ({ medida: m.medida, precio: Number(m.precio) })),
+  }));
+  const conWhatsApp = (clientes ?? []).map((c) => ({
+    id: c.id as string,
+    nombre: c.nombre as string,
+    whatsapp: enlaceWhatsApp(c.telefono, textoListaPrecios(lista, ajustes.nombre_negocio, c.nombre.split(" ")[0]), ajustes.prefijo_whatsapp),
+  }));
+  res.json({
+    texto: textoListaPrecios(lista, ajustes.nombre_negocio),
+    clientes: conWhatsApp.filter((c) => c.whatsapp),
+    sin_telefono: conWhatsApp.filter((c) => !c.whatsapp).length,
   });
 });
 
