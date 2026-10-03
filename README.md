@@ -25,7 +25,7 @@ El front sólo usa Supabase para iniciar sesión. Todos los datos pasan por la A
 | **Pedidos** | Cargar pedidos con varios productos, envío, descuento y seña. Seguir el avance (Pendiente → En producción → Listo → Entregado), registrar pagos y ver cuánto falta cobrar. Se puede crear el cliente desde el mismo pedido. |
 | **Clientes** | Directorio con teléfono, email, dirección de envío y notas. Historial de pedidos, total comprado y deuda de cada cliente. Botones para escribir por WhatsApp o llamar. |
 | **Catálogo** | Lista de productos con cambio de precio en un toque y **aumento masivo** (ej. +10% con redondeo a $50). Muestra el margen real de cada bolsa. |
-| **Calculadora** | Ponés cuánto cuesta el metro de lienzo y el margen que querés ganar, y calcula el costo y el **precio de venta sugerido** de cada bolsa (con botón “Aplicar”). Incluye una calculadora rápida para presupuestar. |
+| **Calculadora** | Ponés cuánto cuesta el metro de lienzo y el margen que querés ganar; en cada bolsa cargás sus metros de lienzo y otros costos y ves al instante el **precio de venta sugerido** (con botón “Aplicar”). |
 | **Finanzas** | Ingresos y gastos por mes, ganancia real y en qué categorías se fue la plata. Los pagos de pedidos se suman solos. |
 | **WhatsApp** | Botón “Avisar que el pedido está listo” que abre WhatsApp (web o app) con el mensaje ya escrito, usando enlaces gratuitos `wa.me`. El mensaje se edita en **Ajustes**. |
 

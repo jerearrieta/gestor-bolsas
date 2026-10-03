@@ -5,11 +5,11 @@ import { useDatos, useEnvio } from "../../lib/datos";
 import { useTitulo } from "../../lib/titulo";
 import { useMarco } from "../../components/marco";
 import { dinero, numero } from "../../lib/formato";
+import { costoBolsa, margenReal, precioSugerido, redondearPrecio } from "../../lib/calculo";
 import type { DatosCatalogo } from "../../lib/catalogo";
 import { nombreConMedida, type Medida, type Producto } from "../../lib/tipos";
 import { Aviso, Encabezado, EstadoCarga, Vacio } from "../../components/ui";
 import { Boton } from "../../components/botones";
-import { CalculadoraRapida } from "./rapida";
 
 export function Calculadora() {
   useTitulo("Calculadora de costos");
@@ -25,7 +25,7 @@ export function Calculadora() {
         subtitulo="Poné cuánto te cuesta el metro de lienzo y te decimos a cuánto vender cada bolsa."
         volver="/catalogo"
       />
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="max-w-xl">
         <CostosBase
           precioMetro={precioMetro}
           margen={margen}
@@ -34,20 +34,22 @@ export function Calculadora() {
             recargarAjustes();
           }}
         />
-        <CalculadoraRapida key={`r-${precioMetro}-${margen}`} precioMetro={precioMetro} margen={margen} />
       </div>
 
       <section className="mt-6">
-        <h2 className="mb-1 font-semibold text-stone-900">3. Precios sugeridos de tu catálogo</h2>
+        <h2 className="mb-1 font-semibold text-stone-900">2. Precios sugeridos de tu catálogo</h2>
         <p className="mb-3 text-sm text-stone-500">
-          Con el lienzo a {dinero(precioMetro)} el metro y {numero(margen)}% de margen. Tocá “Aplicar” para usar el precio sugerido.
+          Con el lienzo a {dinero(precioMetro)} el metro y {numero(margen)}% de margen. Cargá cuántos metros de lienzo lleva cada bolsa y sus otros
+          costos: el sugerido se calcula al instante. Tocá “Aplicar” para guardar los costos y usar el precio sugerido.
         </p>
         {datos.productos.length === 0 ? (
           <Vacio titulo="No hay productos activos" accion={<Link to="/catalogo/nuevo" className="boton-primario">Cargar producto</Link>} />
         ) : (
           <ul className="tarjeta divide-y divide-stone-100">
             {datos.productos.flatMap((p) =>
-              p.medidas.map((m) => <FilaSugerido key={m.id} producto={p} medida={m} margen={margen} alAplicar={recargar} />),
+              p.medidas.map((m) => (
+                <FilaSugerido key={`${m.id}-${m.metros_lienzo}-${m.otros_costos}`} producto={p} medida={m} precioMetro={precioMetro} margen={margen} alGuardar={recargar} />
+              )),
             )}
           </ul>
         )}
@@ -98,44 +100,85 @@ function CostosBase({ precioMetro, margen, alGuardar }: { precioMetro: number; m
   );
 }
 
-function FilaSugerido({ producto, medida: p, margen, alAplicar }: { producto: Producto; medida: Medida; margen: number; alAplicar: () => void }) {
+/** "0,25" o "0.25" -> 0.25 */
+function n(v: string) {
+  const x = Number(v.replace(",", "."));
+  return Number.isFinite(x) ? x : 0;
+}
+
+const comoTexto = (v: number) => (v ? String(v).replace(".", ",") : "");
+
+function FilaSugerido({
+  producto,
+  medida: p,
+  precioMetro,
+  margen,
+  alGuardar,
+}: {
+  producto: Producto;
+  medida: Medida;
+  precioMetro: number;
+  margen: number;
+  alGuardar: () => void;
+}) {
+  const [metros, setMetros] = useState(comoTexto(p.metros_lienzo));
+  const [otros, setOtros] = useState(comoTexto(p.otros_costos));
   const { enviando, error, enviar } = useEnvio();
-  const sinDatos = p.costo === 0;
-  const alDia = !sinDatos && p.precio_sugerido === p.precio;
+
+  // Se recalcula mientras se escribe, con las mismas fórmulas que el servidor.
+  const costo = costoBolsa(precioMetro, n(metros), n(otros));
+  const sugerido = redondearPrecio(precioSugerido(costo, margen));
+  const sinDatos = costo === 0;
+  const costosCambiados = n(metros) !== p.metros_lienzo || n(otros) !== p.otros_costos;
+  const alDia = !sinDatos && !costosCambiados && sugerido === p.precio;
+  const margenActual = margenReal(p.precio, costo);
+
+  function aplicar() {
+    enviar(async () => {
+      if (costosCambiados) await api.patch(`/productos/medidas/${p.id}/costos`, { metros_lienzo: metros, otros_costos: otros });
+      await api.patch(`/productos/medidas/${p.id}/precio`, { precio: sugerido });
+      alGuardar();
+    });
+  }
 
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5">
-      <div className="min-w-40 flex-1">
-        <Link to={`/catalogo/${producto.id}`} className="font-medium text-stone-900 hover:underline">{nombreConMedida(producto.nombre, p.medida)}</Link>
-        <p className="text-xs text-stone-500">
-          {sinDatos ? "Falta cargar metros de lienzo u otros costos" : `${numero(p.metros_lienzo, 3)} m + ${dinero(p.otros_costos)} = costo ${dinero(p.costo)}`}
-        </p>
-        {error && <p className="text-xs text-rose-700">{error}</p>}
+    <li className="space-y-2 px-4 py-3.5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="min-w-40 flex-1">
+          <Link to={`/catalogo/${producto.id}`} className="font-medium text-stone-900 hover:underline">{nombreConMedida(producto.nombre, p.medida)}</Link>
+          <p className="text-xs text-stone-500">{sinDatos ? "Cargá los metros de lienzo para ver el sugerido" : `Costo ${dinero(costo)}`}</p>
+          {error && <p className="text-xs text-rose-700">{error}</p>}
+        </div>
+        <div className="text-right text-sm">
+          <p className="text-xs text-stone-500">Actual</p>
+          <p className="font-semibold tabular-nums">{dinero(p.precio)}</p>
+          {!sinDatos && <p className={`text-xs font-medium ${margenActual < margen ? "text-rose-700" : "text-emerald-700"}`}>{numero(margenActual, 1)}%</p>}
+        </div>
+        <div className="text-right text-sm">
+          <p className="text-xs text-stone-500">Sugerido</p>
+          <p className="font-semibold tabular-nums text-marca-700">{sinDatos ? "—" : dinero(sugerido)}</p>
+        </div>
+        <Boton
+          type="button"
+          cargando={enviando}
+          textoCargando="…"
+          disabled={sinDatos || alDia}
+          className="boton-secundario min-h-9 px-3 py-1.5"
+          onClick={aplicar}
+        >
+          {alDia ? "Al día" : "Aplicar"}
+        </Boton>
       </div>
-      <div className="text-right text-sm">
-        <p className="text-xs text-stone-500">Actual</p>
-        <p className="font-semibold tabular-nums">{dinero(p.precio)}</p>
-        {!sinDatos && <p className={`text-xs font-medium ${p.margen_real < margen ? "text-rose-700" : "text-emerald-700"}`}>{numero(p.margen_real, 1)}%</p>}
+      <div className="grid grid-cols-2 gap-2 sm:max-w-sm">
+        <label className="block">
+          <span className="text-xs text-stone-500">Metros de lienzo</span>
+          <input inputMode="decimal" value={metros} onChange={(e) => setMetros(e.target.value)} placeholder="Ej: 0,25" className="campo min-h-9 py-1.5" />
+        </label>
+        <label className="block">
+          <span className="text-xs text-stone-500">Otros costos ($)</span>
+          <input inputMode="decimal" value={otros} onChange={(e) => setOtros(e.target.value)} placeholder="Hilo, manijas…" className="campo min-h-9 py-1.5" />
+        </label>
       </div>
-      <div className="text-right text-sm">
-        <p className="text-xs text-stone-500">Sugerido</p>
-        <p className="font-semibold tabular-nums text-marca-700">{sinDatos ? "—" : dinero(p.precio_sugerido)}</p>
-      </div>
-      <Boton
-        type="button"
-        cargando={enviando}
-        textoCargando="…"
-        disabled={sinDatos || alDia}
-        className="boton-secundario min-h-9 px-3 py-1.5"
-        onClick={() =>
-          enviar(async () => {
-            await api.patch(`/productos/medidas/${p.id}/precio`, { precio: p.precio_sugerido });
-            alAplicar();
-          })
-        }
-      >
-        {alDia ? "Al día" : "Aplicar"}
-      </Boton>
     </li>
   );
 }
