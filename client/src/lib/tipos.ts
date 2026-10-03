@@ -37,20 +37,31 @@ export type Ajustes = {
   mensaje_listo: string;
 };
 
-export type Producto = {
+export type Medida = {
   id: string;
-  nombre: string;
-  descripcion: string | null;
+  medida: string;
   precio: number;
   metros_lienzo: number;
   otros_costos: number;
-  activo: boolean;
   // Calculados por el servidor
   costo: number;
   precio_sugerido: number;
   margen_real: number;
   margen_bajo: boolean;
 };
+
+export type Producto = {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  activo: boolean;
+  medidas: Medida[];
+};
+
+/** "Marinera 10x10", o sólo "Marinera" si el producto tiene una única medida sin nombre. */
+export function nombreConMedida(producto: string, medida: string) {
+  return medida ? `${producto} ${medida}` : producto;
+}
 
 export type Cliente = {
   id: string;
@@ -86,6 +97,7 @@ export type PedidoResumen = {
 export type PedidoItem = {
   id: string;
   producto_id: string | null;
+  medida_id: string | null;
   descripcion: string;
   cantidad: number;
   precio_unitario: number;

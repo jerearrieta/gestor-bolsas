@@ -6,7 +6,7 @@ import { useDatos, useEnvio } from "../../lib/datos";
 import { useTitulo } from "../../lib/titulo";
 import { dinero, numero } from "../../lib/formato";
 import type { DatosCatalogo } from "../../lib/catalogo";
-import type { Producto } from "../../lib/tipos";
+import { nombreConMedida, type Medida, type Producto } from "../../lib/tipos";
 import { Aviso, Encabezado, EstadoCarga, Vacio } from "../../components/ui";
 import { Boton } from "../../components/botones";
 
@@ -18,7 +18,7 @@ export function Catalogo() {
     <>
       <Encabezado
         titulo="Catálogo y precios"
-        subtitulo="Cambiá un precio y tocá ✓ para guardarlo."
+        subtitulo="Cada producto con sus medidas. Cambiá un precio y tocá ✓ para guardarlo."
         acciones={
           <>
             <Link to="/catalogo/calculadora" className="boton-secundario">
@@ -36,15 +36,15 @@ export function Catalogo() {
         <Vacio
           icono={<Tag className="size-10" />}
           titulo="Tu catálogo está vacío"
-          texto="Cargá tus modelos de bolsas con su precio. Después los elegís con un toque al armar un pedido."
+          texto="Cargá tus modelos de bolsas con sus medidas y precios. Después los elegís con un toque al armar un pedido."
           accion={<Link to="/catalogo/nuevo" className="boton-primario"><Plus className="size-4" /> Cargar el primero</Link>}
         />
       ) : (
         <>
           <AumentoMasivo alTerminar={recargar} />
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="grid items-start gap-3 sm:grid-cols-2">
             {datos.productos.map((p) => (
-              <TarjetaProducto key={`${p.id}-${p.precio}`} producto={p} alGuardar={recargar} />
+              <TarjetaProducto key={p.id} producto={p} alGuardar={recargar} />
             ))}
           </ul>
         </>
@@ -54,50 +54,67 @@ export function Catalogo() {
 }
 
 function TarjetaProducto({ producto: p, alGuardar }: { producto: Producto; alGuardar: () => void }) {
-  const [precio, setPrecio] = useState(String(p.precio));
-  const { enviando, error, enviar } = useEnvio();
-
-  function guardar(e: FormEvent) {
-    e.preventDefault();
-    enviar(async () => {
-      await api.patch(`/productos/${p.id}/precio`, { precio });
-      alGuardar();
-    });
-  }
-
   return (
     <li className={`tarjeta p-4 ${p.activo ? "" : "opacity-60"}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-semibold text-stone-900">{p.nombre}</p>
           {p.descripcion && <p className="line-clamp-2 text-xs text-stone-500">{p.descripcion}</p>}
-          {!p.activo && <p className="mt-1 text-xs font-medium text-stone-500">Inactivo</p>}
+          <p className="mt-0.5 text-xs text-stone-500">
+            {p.medidas.length === 1 ? "1 medida" : `${p.medidas.length} medidas`}
+            {!p.activo && " · Inactivo"}
+          </p>
         </div>
         <Link to={`/catalogo/${p.id}`} aria-label={`Editar ${p.nombre}`} className="-mr-1 -mt-1 rounded-lg p-2 text-stone-500 hover:bg-stone-100">
           <Pencil className="size-4" />
         </Link>
       </div>
-      <form onSubmit={guardar} className="mt-3 flex gap-2">
+      <ul className="mt-3 divide-y divide-stone-100 border-t border-stone-100">
+        {p.medidas.map((m) => (
+          <FilaMedida key={`${m.id}-${m.precio}`} producto={p.nombre} medida={m} alGuardar={alGuardar} />
+        ))}
+      </ul>
+    </li>
+  );
+}
+
+function FilaMedida({ producto, medida: m, alGuardar }: { producto: string; medida: Medida; alGuardar: () => void }) {
+  const [precio, setPrecio] = useState(String(m.precio));
+  const { enviando, error, enviar } = useEnvio();
+  const nombre = nombreConMedida(producto, m.medida);
+
+  function guardar(e: FormEvent) {
+    e.preventDefault();
+    enviar(async () => {
+      await api.patch(`/productos/medidas/${m.id}/precio`, { precio });
+      alGuardar();
+    });
+  }
+
+  return (
+    <li className="py-2">
+      <form onSubmit={guardar} className="flex items-center gap-2">
+        <span className="w-20 shrink-0 font-medium tabular-nums text-stone-700">{m.medida || "Precio"}</span>
         <div className="relative flex-1">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400">$</span>
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">$</span>
           <input
             value={precio}
             onChange={(e) => setPrecio(e.target.value)}
             inputMode="decimal"
-            aria-label={`Precio de ${p.nombre}`}
-            className="campo pl-7 text-lg font-semibold tabular-nums"
+            aria-label={`Precio de ${nombre}`}
+            className="campo min-h-10 py-1.5 pl-6 font-semibold tabular-nums"
           />
         </div>
-        <button type="submit" disabled={enviando || precio === String(p.precio)} className="boton-primario px-3" aria-label="Guardar precio">
-          {enviando ? <Loader2 className="size-5 animate-spin" /> : <Check className="size-5" />}
+        <button type="submit" disabled={enviando || precio === String(m.precio)} className="boton-primario min-h-10 px-2.5 py-1.5" aria-label={`Guardar precio de ${nombre}`}>
+          {enviando ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
         </button>
       </form>
-      {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
-      {p.costo > 0 && (
-        <p className="mt-2 text-xs text-stone-500">
-          Costo {dinero(p.costo)} · margen{" "}
-          <span className={`font-semibold ${p.margen_bajo ? "text-rose-700" : "text-emerald-700"}`}>{numero(p.margen_real, 1)}%</span>
-          {p.margen_bajo && " (bajo tu objetivo)"}
+      {error && <p className="mt-1 text-xs text-rose-700">{error}</p>}
+      {m.costo > 0 && (
+        <p className="mt-1 pl-22 text-xs text-stone-500">
+          Costo {dinero(m.costo)} · margen{" "}
+          <span className={`font-semibold ${m.margen_bajo ? "text-rose-700" : "text-emerald-700"}`}>{numero(m.margen_real, 1)}%</span>
+          {m.margen_bajo && " (bajo tu objetivo)"}
         </p>
       )}
     </li>
@@ -120,7 +137,7 @@ function AumentoMasivo({ alTerminar }: { alTerminar: () => void }) {
       const n = Number(porcentaje.replace(",", "."));
       setPorcentaje("");
       alTerminar();
-      return `Listo: ${actualizados} productos actualizados (${n > 0 ? "+" : ""}${n}%).`;
+      return `Listo: ${actualizados} precios actualizados (${n > 0 ? "+" : ""}${n}%).`;
     });
   }
 

@@ -8,32 +8,42 @@ import { costoBolsa, margenReal, precioSugerido, redondearPrecio } from "../lib/
 
 export const productos = Router();
 
-type Producto = { precio: number; metros_lienzo: number; otros_costos: number } & Record<string, unknown>;
+const CAMPOS = "id, nombre, descripcion, activo, medidas:producto_medidas(id, medida, precio, metros_lienzo, otros_costos, posicion)";
 
-/** Agrega al producto su costo, el precio sugerido y el margen real según los ajustes. */
+type Medida = { id: string; medida: string; precio: number; metros_lienzo: number; otros_costos: number; posicion: number };
+type Producto = { id: string; nombre: string; descripcion: string | null; activo: boolean; medidas: Medida[] };
+
+/** Agrega a cada medida su costo, el precio sugerido y el margen real según los ajustes. */
 function conCalculos(p: Producto, a: Ajustes) {
-  const costo = costoBolsa(a.precio_metro_lienzo, Number(p.metros_lienzo), Number(p.otros_costos));
-  const margen = margenReal(Number(p.precio), costo);
-  return {
-    ...p,
-    precio: Number(p.precio),
-    metros_lienzo: Number(p.metros_lienzo),
-    otros_costos: Number(p.otros_costos),
-    costo,
-    precio_sugerido: redondearPrecio(precioSugerido(costo, a.margen_objetivo)),
-    margen_real: margen,
-    margen_bajo: costo > 0 && margen < a.margen_objetivo,
-  };
+  const medidas = [...(p.medidas ?? [])]
+    .sort((x, y) => x.posicion - y.posicion)
+    .map((m) => {
+      const precio = Number(m.precio);
+      const costo = costoBolsa(a.precio_metro_lienzo, Number(m.metros_lienzo), Number(m.otros_costos));
+      const margen = margenReal(precio, costo);
+      return {
+        id: m.id,
+        medida: m.medida,
+        precio,
+        metros_lienzo: Number(m.metros_lienzo),
+        otros_costos: Number(m.otros_costos),
+        costo,
+        precio_sugerido: redondearPrecio(precioSugerido(costo, a.margen_objetivo)),
+        margen_real: margen,
+        margen_bajo: costo > 0 && margen < a.margen_objetivo,
+      };
+    });
+  return { ...p, medidas };
 }
 
 productos.get("/", async (req, res) => {
   const { supabase } = sesion(res);
-  let consulta = supabase.from("productos").select("*").order("activo", { ascending: false }).order("nombre");
+  let consulta = supabase.from("productos").select(CAMPOS).order("activo", { ascending: false }).order("nombre");
   if (req.query.activos === "1") consulta = consulta.eq("activo", true);
   const [{ data, error }, ajustes] = await Promise.all([consulta, obtenerAjustes(supabase)]);
   siFalla(error, "No se pudieron leer los productos");
   res.json({
-    productos: (data ?? []).map((p) => conCalculos(p, ajustes)),
+    productos: ((data ?? []) as Producto[]).map((p) => conCalculos(p, ajustes)),
     precio_metro_lienzo: ajustes.precio_metro_lienzo,
     margen_objetivo: ajustes.margen_objetivo,
   });
@@ -42,42 +52,85 @@ productos.get("/", async (req, res) => {
 productos.get("/:id", async (req, res) => {
   const { supabase } = sesion(res);
   const [{ data }, ajustes] = await Promise.all([
-    supabase.from("productos").select("*").eq("id", req.params.id).maybeSingle(),
+    supabase.from("productos").select(CAMPOS).eq("id", req.params.id).maybeSingle(),
     obtenerAjustes(supabase),
   ]);
   if (!data) throw noEncontrado("Producto");
-  res.json(conCalculos(data, ajustes));
+  res.json(conCalculos(data as Producto, ajustes));
 });
 
 const esquemaProducto = z.object({
   nombre: z.string().trim().min(1, { error: "El nombre es obligatorio." }),
   descripcion: texto.optional(),
-  precio: monto,
-  metros_lienzo: monto,
-  otros_costos: monto,
   activo: z.boolean().default(true),
+  medidas: z
+    .array(
+      z.object({
+        id: z.string().uuid().optional(),
+        medida: z.string().trim().max(100).default(""),
+        precio: monto,
+        metros_lienzo: monto.default(0),
+        otros_costos: monto.default(0),
+      }),
+    )
+    .min(1, { error: "Agregá al menos una medida con su precio." }),
 });
+
+/** Guarda las medidas del producto: actualiza las que siguen, crea las nuevas y borra las que se quitaron. */
+async function guardarMedidas(res: Parameters<typeof sesion>[0], productoId: string, medidas: z.infer<typeof esquemaProducto>["medidas"]) {
+  const { supabase } = sesion(res);
+  const { data: actuales, error } = await supabase.from("producto_medidas").select("id").eq("producto_id", productoId);
+  siFalla(error, "No se pudieron leer las medidas");
+  const quedan = new Set(medidas.map((m) => m.id).filter(Boolean));
+  const borrar = (actuales ?? []).map((m) => m.id).filter((id) => !quedan.has(id));
+  if (borrar.length) {
+    const { error: e } = await supabase.from("producto_medidas").delete().in("id", borrar);
+    siFalla(e, "No se pudieron quitar las medidas");
+  }
+  const filas = medidas.map(({ id, ...m }, posicion) => ({ ...m, posicion, producto_id: productoId, ...(id ? { id } : {}) }));
+  const existentes = filas.filter((f) => "id" in f);
+  const nuevas = filas.filter((f) => !("id" in f));
+  if (existentes.length) {
+    const { error: e } = await supabase.from("producto_medidas").upsert(existentes);
+    siFalla(e, "No se pudieron guardar las medidas");
+  }
+  if (nuevas.length) {
+    const { error: e } = await supabase.from("producto_medidas").insert(nuevas);
+    siFalla(e, "No se pudieron guardar las medidas");
+  }
+}
 
 productos.post("/", async (req, res) => {
   const { supabase } = sesion(res);
-  const { data, error } = await supabase.from("productos").insert(esquemaProducto.parse(req.body)).select("id").single();
+  const { medidas, ...producto } = esquemaProducto.parse(req.body);
+  const { data, error } = await supabase.from("productos").insert(producto).select("id").single();
   siFalla(error, "No se pudo crear el producto");
+  try {
+    await guardarMedidas(res, data!.id, medidas);
+  } catch (e) {
+    await supabase.from("productos").delete().eq("id", data!.id);
+    throw e;
+  }
   res.status(201).json(data);
 });
 
 productos.put("/:id", async (req, res) => {
   const { supabase } = sesion(res);
-  const { error } = await supabase.from("productos").update(esquemaProducto.parse(req.body)).eq("id", req.params.id);
+  const { medidas, ...producto } = esquemaProducto.parse(req.body);
+  const { data, error } = await supabase.from("productos").update(producto).eq("id", req.params.id).select("id");
   siFalla(error, "No se pudo guardar el producto");
+  if (!data?.length) throw noEncontrado("Producto");
+  await guardarMedidas(res, req.params.id, medidas);
   res.json({ id: req.params.id });
 });
 
-/** Cambio rápido de precio (catálogo y calculadora). */
-productos.patch("/:id/precio", async (req, res) => {
+/** Cambio rápido del precio de una medida (catálogo y calculadora). */
+productos.patch("/medidas/:id/precio", async (req, res) => {
   const { supabase } = sesion(res);
   const { precio } = z.object({ precio: monto }).parse(req.body);
-  const { error } = await supabase.from("productos").update({ precio }).eq("id", req.params.id);
+  const { data, error } = await supabase.from("producto_medidas").update({ precio }).eq("id", req.params.id).select("id");
   siFalla(error, "No se pudo actualizar el precio");
+  if (!data?.length) throw noEncontrado("Medida");
   res.json({ id: req.params.id, precio });
 });
 

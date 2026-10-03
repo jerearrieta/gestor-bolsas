@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useDatos, useEnvio } from "../../lib/datos";
 import { useTitulo } from "../../lib/titulo";
@@ -59,23 +59,42 @@ function n(v: string) {
   return Number.isFinite(x) ? x : 0;
 }
 
+type FilaMedida = { clave: number; id?: string; medida: string; precio: string; metros: string; otros: string };
+
+let siguiente = 1;
+const medidaVacia = (): FilaMedida => ({ clave: siguiente++, medida: "", precio: "", metros: "", otros: "" });
+
 function FormularioProducto({ producto, precioMetro, margen }: { producto?: Producto; precioMetro: number; margen: number }) {
   const navegar = useNavigate();
   const { enviando, error, enviar } = useEnvio();
   const [nombre, setNombre] = useState(producto?.nombre ?? "");
   const [descripcion, setDescripcion] = useState(producto?.descripcion ?? "");
-  const [precio, setPrecio] = useState(String(producto?.precio ?? ""));
-  const [metros, setMetros] = useState(String(producto?.metros_lienzo ?? ""));
-  const [otros, setOtros] = useState(String(producto?.otros_costos ?? ""));
   const [activo, setActivo] = useState(producto?.activo ?? true);
+  const [medidas, setMedidas] = useState<FilaMedida[]>(() =>
+    producto?.medidas.length
+      ? producto.medidas.map((m) => ({
+          clave: siguiente++,
+          id: m.id,
+          medida: m.medida,
+          precio: String(m.precio),
+          metros: m.metros_lienzo ? String(m.metros_lienzo) : "",
+          otros: m.otros_costos ? String(m.otros_costos) : "",
+        }))
+      : [medidaVacia()],
+  );
 
-  const costo = costoBolsa(precioMetro, n(metros), n(otros));
-  const sugerido = redondearPrecio(precioSugerido(costo, margen));
-  const margenActual = margenReal(n(precio), costo);
+  function cambiar(clave: number, cambios: Partial<FilaMedida>) {
+    setMedidas((prev) => prev.map((m) => (m.clave === clave ? { ...m, ...cambios } : m)));
+  }
 
   function guardar(e: FormEvent) {
     e.preventDefault();
-    const cuerpo = { nombre, descripcion, precio, metros_lienzo: metros, otros_costos: otros, activo };
+    const cuerpo = {
+      nombre,
+      descripcion,
+      activo,
+      medidas: medidas.map((m) => ({ id: m.id, medida: m.medida, precio: m.precio, metros_lienzo: m.metros, otros_costos: m.otros })),
+    };
     enviar(async () => {
       if (producto) await api.put(`/productos/${producto.id}`, cuerpo);
       else await api.post("/productos", cuerpo);
@@ -84,58 +103,93 @@ function FormularioProducto({ producto, precioMetro, margen }: { producto?: Prod
   }
 
   return (
-    <form onSubmit={guardar} className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+    <form onSubmit={guardar} className="space-y-4">
       <div className="tarjeta space-y-4 p-4 sm:p-6">
         {error && <Aviso>{error}</Aviso>}
         <div>
-          <label htmlFor="nombre" className="etiqueta">Nombre *</label>
-          <input id="nombre" required value={nombre} onChange={(e) => setNombre(e.target.value)} className="campo" placeholder="Ej: Tote bag 35x40 estampada" />
+          <label htmlFor="nombre" className="etiqueta">Producto *</label>
+          <input id="nombre" required value={nombre} onChange={(e) => setNombre(e.target.value)} className="campo" placeholder="Ej: Marinera, Totebag, Mochilita…" />
         </div>
         <div>
           <label htmlFor="descripcion" className="etiqueta">Descripción</label>
-          <textarea id="descripcion" rows={2} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="campo" placeholder="Medidas, tipo de lienzo, colores…" />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="metros_lienzo" className="etiqueta">Metros de lienzo por bolsa</label>
-            <input id="metros_lienzo" inputMode="decimal" value={metros} onChange={(e) => setMetros(e.target.value)} className="campo" placeholder="Ej: 0,5" />
-          </div>
-          <div>
-            <label htmlFor="otros_costos" className="etiqueta">Otros costos por bolsa ($)</label>
-            <input id="otros_costos" inputMode="decimal" value={otros} onChange={(e) => setOtros(e.target.value)} className="campo" placeholder="Hilo, manijas, estampado…" />
-          </div>
-        </div>
-        <div>
-          <label htmlFor="precio" className="etiqueta">Precio de venta ($) *</label>
-          <input id="precio" required inputMode="decimal" value={precio} onChange={(e) => setPrecio(e.target.value)} className="campo text-lg font-semibold" />
+          <textarea id="descripcion" rows={2} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="campo" placeholder="Tipo de lienzo, colores, terminaciones…" />
         </div>
         <label className="flex items-center gap-3 text-sm text-stone-700">
           <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="size-5 accent-marca-600" />
           Producto activo (aparece al cargar pedidos)
         </label>
-        <div className="flex justify-end">
-          <Boton cargando={enviando} className="boton-primario w-full sm:w-auto">{producto ? "Guardar cambios" : "Crear producto"}</Boton>
-        </div>
       </div>
 
-      <aside className="tarjeta h-fit space-y-3 bg-marca-50/60 p-4 sm:p-5">
-        <h2 className="font-semibold text-stone-900">Costo y precio sugerido</h2>
-        <dl className="space-y-2 text-sm">
-          <div className="flex justify-between gap-2"><dt className="text-stone-600">Lienzo ({numero(n(metros), 3)} m × {dinero(precioMetro)})</dt><dd className="tabular-nums">{dinero(precioMetro * n(metros))}</dd></div>
-          <div className="flex justify-between gap-2"><dt className="text-stone-600">Otros costos</dt><dd className="tabular-nums">{dinero(n(otros))}</dd></div>
-          <div className="flex justify-between gap-2 border-t border-marca-200 pt-2 font-semibold"><dt>Costo por bolsa</dt><dd className="tabular-nums">{dinero(costo)}</dd></div>
-          <div className="flex justify-between gap-2"><dt className="text-stone-600">Precio sugerido ({numero(margen)}% de margen)</dt><dd className="font-semibold tabular-nums text-marca-700">{dinero(sugerido)}</dd></div>
-          {n(precio) > 0 && costo > 0 && (
-            <div className="flex justify-between gap-2"><dt className="text-stone-600">Margen con tu precio</dt><dd className={`font-semibold tabular-nums ${margenActual < margen ? "text-rose-700" : "text-emerald-700"}`}>{numero(margenActual, 1)}%</dd></div>
-          )}
-        </dl>
-        {sugerido > 0 && sugerido !== n(precio) && (
-          <button type="button" onClick={() => setPrecio(String(sugerido))} className="boton-secundario w-full">
-            Usar precio sugerido ({dinero(sugerido)})
-          </button>
-        )}
+      <section className="tarjeta space-y-3 p-4 sm:p-6">
+        <div>
+          <h2 className="font-semibold text-stone-900">Medidas y precios</h2>
+          <p className="text-sm text-stone-500">
+            Los metros de lienzo y otros costos son opcionales: sirven para calcular el costo y el precio sugerido ({numero(margen)}% de margen).
+          </p>
+        </div>
+        <ul className="space-y-3">
+          {medidas.map((m) => {
+            const costo = costoBolsa(precioMetro, n(m.metros), n(m.otros));
+            const sugerido = redondearPrecio(precioSugerido(costo, margen));
+            const margenActual = margenReal(n(m.precio), costo);
+            return (
+              <li key={m.clave} className="rounded-xl border border-stone-200 p-3">
+                <div className="grid grid-cols-[1fr_1.2fr_auto] items-end gap-2">
+                  <label className="block">
+                    <span className="etiqueta">Medida</span>
+                    <input value={m.medida} onChange={(e) => cambiar(m.clave, { medida: e.target.value })} className="campo" placeholder="Ej: 20x30" />
+                  </label>
+                  <label className="block">
+                    <span className="etiqueta">Precio ($) *</span>
+                    <input required inputMode="decimal" value={m.precio} onChange={(e) => cambiar(m.clave, { precio: e.target.value })} className="campo font-semibold" />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={medidas.length === 1}
+                    onClick={() => setMedidas((prev) => prev.filter((x) => x.clave !== m.clave))}
+                    className="mb-1 rounded-lg p-2 text-stone-400 hover:bg-rose-50 hover:text-rose-600 disabled:invisible"
+                    aria-label={`Quitar medida ${m.medida}`}
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="etiqueta">Metros de lienzo</span>
+                    <input inputMode="decimal" value={m.metros} onChange={(e) => cambiar(m.clave, { metros: e.target.value })} className="campo" placeholder="Ej: 0,25" />
+                  </label>
+                  <label className="block">
+                    <span className="etiqueta">Otros costos ($)</span>
+                    <input inputMode="decimal" value={m.otros} onChange={(e) => cambiar(m.clave, { otros: e.target.value })} className="campo" placeholder="Hilo, manijas…" />
+                  </label>
+                </div>
+                {costo > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-600">
+                    <span>Costo {dinero(costo)}</span>
+                    <span>Sugerido <strong className="text-marca-700">{dinero(sugerido)}</strong></span>
+                    {n(m.precio) > 0 && (
+                      <span className={`font-semibold ${margenActual < margen ? "text-rose-700" : "text-emerald-700"}`}>Margen {numero(margenActual, 1)}%</span>
+                    )}
+                    {sugerido !== n(m.precio) && (
+                      <button type="button" onClick={() => cambiar(m.clave, { precio: String(sugerido) })} className="font-semibold text-marca-700 underline">
+                        Usar sugerido
+                      </button>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        <button type="button" onClick={() => setMedidas((prev) => [...prev, medidaVacia()])} className="boton-secundario w-full border-dashed">
+          <Plus className="size-4" /> Agregar medida
+        </button>
         {precioMetro === 0 && <p className="text-xs text-stone-500">Tip: cargá cuánto te cuesta el metro de lienzo en la Calculadora para ver el costo real.</p>}
-      </aside>
+      </section>
+
+      <div className="flex justify-end">
+        <Boton cargando={enviando} className="boton-primario w-full sm:w-auto">{producto ? "Guardar cambios" : "Crear producto"}</Boton>
+      </div>
     </form>
   );
 }

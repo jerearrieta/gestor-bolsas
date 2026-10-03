@@ -6,7 +6,7 @@ import { useTitulo } from "../../lib/titulo";
 import { useMarco } from "../../components/marco";
 import { dinero, numero } from "../../lib/formato";
 import type { DatosCatalogo } from "../../lib/catalogo";
-import type { Producto } from "../../lib/tipos";
+import { nombreConMedida, type Medida, type Producto } from "../../lib/tipos";
 import { Aviso, Encabezado, EstadoCarga, Vacio } from "../../components/ui";
 import { Boton } from "../../components/botones";
 import { CalculadoraRapida } from "./rapida";
@@ -46,9 +46,9 @@ export function Calculadora() {
           <Vacio titulo="No hay productos activos" accion={<Link to="/catalogo/nuevo" className="boton-primario">Cargar producto</Link>} />
         ) : (
           <ul className="tarjeta divide-y divide-stone-100">
-            {datos.productos.map((p) => (
-              <FilaSugerido key={p.id} producto={p} margen={margen} alAplicar={recargar} />
-            ))}
+            {datos.productos.flatMap((p) =>
+              p.medidas.map((m) => <FilaSugerido key={m.id} producto={p} medida={m} margen={margen} alAplicar={recargar} />),
+            )}
           </ul>
         )}
       </section>
@@ -98,7 +98,7 @@ function CostosBase({ precioMetro, margen, alGuardar }: { precioMetro: number; m
   );
 }
 
-function FilaSugerido({ producto: p, margen, alAplicar }: { producto: Producto; margen: number; alAplicar: () => void }) {
+function FilaSugerido({ producto, medida: p, margen, alAplicar }: { producto: Producto; medida: Medida; margen: number; alAplicar: () => void }) {
   const { enviando, error, enviar } = useEnvio();
   const sinDatos = p.costo === 0;
   const alDia = !sinDatos && p.precio_sugerido === p.precio;
@@ -106,7 +106,7 @@ function FilaSugerido({ producto: p, margen, alAplicar }: { producto: Producto; 
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5">
       <div className="min-w-40 flex-1">
-        <Link to={`/catalogo/${p.id}`} className="font-medium text-stone-900 hover:underline">{p.nombre}</Link>
+        <Link to={`/catalogo/${producto.id}`} className="font-medium text-stone-900 hover:underline">{nombreConMedida(producto.nombre, p.medida)}</Link>
         <p className="text-xs text-stone-500">
           {sinDatos ? "Falta cargar metros de lienzo u otros costos" : `${numero(p.metros_lienzo, 3)} m + ${dinero(p.otros_costos)} = costo ${dinero(p.costo)}`}
         </p>
@@ -129,7 +129,7 @@ function FilaSugerido({ producto: p, margen, alAplicar }: { producto: Producto; 
         className="boton-secundario min-h-9 px-3 py-1.5"
         onClick={() =>
           enviar(async () => {
-            await api.patch(`/productos/${p.id}/precio`, { precio: p.precio_sugerido });
+            await api.patch(`/productos/medidas/${p.id}/precio`, { precio: p.precio_sugerido });
             alAplicar();
           })
         }
