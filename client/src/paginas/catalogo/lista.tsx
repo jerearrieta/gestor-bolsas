@@ -42,8 +42,9 @@ export function Catalogo() {
       ) : (
         <>
           <AumentoMasivo alTerminar={recargar} />
-          <ul className="grid items-start gap-3 sm:grid-cols-2">
-            {datos.productos.map((p) => (
+          <ul className="gap-3 sm:columns-2">
+            {/* Los productos con más medidas primero: así las dos columnas quedan parejas. */}
+            {[...datos.productos].sort((a, b) => Number(b.activo) - Number(a.activo) || b.medidas.length - a.medidas.length).map((p) => (
               <TarjetaProducto key={p.id} producto={p} alGuardar={recargar} />
             ))}
           </ul>
@@ -55,7 +56,7 @@ export function Catalogo() {
 
 function TarjetaProducto({ producto: p, alGuardar }: { producto: Producto; alGuardar: () => void }) {
   return (
-    <li className={`tarjeta p-4 ${p.activo ? "" : "opacity-60"}`}>
+    <li className={`tarjeta mb-3 break-inside-avoid p-4 ${p.activo ? "" : "opacity-60"}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-semibold text-stone-900">{p.nombre}</p>
