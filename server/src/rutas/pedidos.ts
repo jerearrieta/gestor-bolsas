@@ -84,6 +84,11 @@ const esquemaPedido = z.object({
   direccion_envio: texto.optional(),
   costo_envio: monto.default(0),
   descuento: monto.default(0),
+  /** Si viene, el descuento es este % sobre el subtotal de los productos (el envío no se descuenta). */
+  descuento_porcentaje: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined || Number(String(v).replace(",", ".")) === 0 ? null : Number(String(v).replace(",", "."))),
+    z.number({ error: "Porcentaje inválido." }).gt(0, { error: "El porcentaje tiene que ser mayor a 0." }).max(100, { error: "El descuento no puede ser más del 100%." }).nullable(),
+  ).default(null),
   notas: texto.optional(),
   sena: monto.default(0),
   items: z
@@ -114,6 +119,10 @@ async function guardar(res: Parameters<typeof sesion>[0], cuerpo: unknown, id?: 
     clienteId = data!.id;
   }
 
+  const subtotal = items.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0);
+  const porcentaje = resto.descuento_porcentaje;
+  const descuento = porcentaje ? Math.round(subtotal * porcentaje) / 100 : resto.descuento;
+
   const datos = {
     cliente_id: clienteId,
     estado: resto.estado,
@@ -121,7 +130,8 @@ async function guardar(res: Parameters<typeof sesion>[0], cuerpo: unknown, id?: 
     fecha_entrega: resto.fecha_entrega ?? null,
     direccion_envio: resto.direccion_envio ?? null,
     costo_envio: resto.costo_envio,
-    descuento: resto.descuento,
+    descuento,
+    descuento_porcentaje: porcentaje,
     notas: resto.notas ?? null,
   };
 

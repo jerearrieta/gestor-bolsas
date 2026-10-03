@@ -6,7 +6,7 @@ import { useDatos, useEnvio } from "../../lib/datos";
 import { useTitulo } from "../../lib/titulo";
 import { Boton } from "../../components/botones";
 import { Aviso, Encabezado, EstadoCarga } from "../../components/ui";
-import { dinero } from "../../lib/formato";
+import { dinero, numero } from "../../lib/formato";
 import { ESTADOS, nombreConMedida, type EstadoPedido } from "../../lib/tipos";
 
 type ClienteOpcion = { id: string; nombre: string; telefono: string | null; direccion: string | null; localidad: string | null };
@@ -22,6 +22,7 @@ type PedidoInicial = {
   direccion_envio: string | null;
   costo_envio: number;
   descuento: number;
+  descuento_porcentaje: number | null;
   notas: string | null;
   items: { producto_id: string | null; medida_id: string | null; descripcion: string; cantidad: number; precio_unitario: number }[];
 };
@@ -98,10 +99,16 @@ function FormularioPedido({
       : [itemVacio()],
   );
   const [envio, setEnvio] = useState(String(pedido?.costo_envio ?? ""));
-  const [descuento, setDescuento] = useState(String(pedido?.descuento ?? ""));
+  const [tipoDescuento, setTipoDescuento] = useState<"$" | "%">(pedido?.descuento_porcentaje ? "%" : "$");
+  const [descuento, setDescuento] = useState(() => {
+    if (pedido?.descuento_porcentaje) return String(Number(pedido.descuento_porcentaje));
+    return Number(pedido?.descuento) > 0 ? String(Number(pedido!.descuento)) : "";
+  });
 
   const subtotal = items.reduce((s, i) => s + n(i.cantidad) * n(i.precio_unitario), 0);
-  const total = Math.max(subtotal + n(envio) - n(descuento), 0);
+  // El % se aplica sobre los productos; el envío no se descuenta. Mismo cálculo que el servidor.
+  const descuentoMonto = tipoDescuento === "%" ? Math.round(subtotal * Math.min(n(descuento), 100)) / 100 : n(descuento);
+  const total = Math.max(subtotal + n(envio) - descuentoMonto, 0);
 
   function guardar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -120,7 +127,8 @@ function FormularioPedido({
       fecha_entrega: f.get("fecha_entrega"),
       direccion_envio: direccion,
       costo_envio: envio,
-      descuento,
+      descuento: tipoDescuento === "$" ? descuento : 0,
+      descuento_porcentaje: tipoDescuento === "%" ? descuento : null,
       notas: f.get("notas"),
       sena: f.get("sena") ?? 0,
       items: validos.map((i) => ({
@@ -277,7 +285,22 @@ function FormularioPedido({
           </div>
           <div>
             <label htmlFor="descuento" className="etiqueta">Descuento</label>
-            <input id="descuento" name="descuento" value={descuento} onChange={(e) => setDescuento(e.target.value)} inputMode="decimal" className="campo" placeholder="0" />
+            <div className="flex gap-1.5">
+              <input id="descuento" name="descuento" value={descuento} onChange={(e) => setDescuento(e.target.value)} inputMode="decimal" className="campo min-w-0" placeholder="0" />
+              <div className="flex shrink-0 rounded-xl bg-stone-100 p-1" role="group" aria-label="Tipo de descuento">
+                {(["$", "%"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTipoDescuento(t)}
+                    aria-pressed={tipoDescuento === t}
+                    className={`w-9 rounded-lg text-sm font-semibold ${tipoDescuento === t ? "bg-white text-marca-700 shadow-sm" : "text-stone-500"}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           {!pedido && (
             <div className="col-span-2 sm:col-span-1">
@@ -290,6 +313,32 @@ function FormularioPedido({
           <label htmlFor="notas" className="etiqueta">Notas</label>
           <textarea id="notas" name="notas" rows={2} defaultValue={pedido?.notas ?? ""} className="campo" placeholder="Colores, diseño del estampado, forma de pago…" />
         </div>
+      </section>
+
+      {/* Resumen del total */}
+      <section className="tarjeta p-4 sm:p-5">
+        <dl className="space-y-1.5 text-sm">
+          <div className="flex justify-between">
+            <dt className="text-stone-500">Subtotal</dt>
+            <dd className="tabular-nums">{dinero(subtotal)}</dd>
+          </div>
+          {n(envio) > 0 && (
+            <div className="flex justify-between">
+              <dt className="text-stone-500">Envío</dt>
+              <dd className="tabular-nums">{dinero(n(envio))}</dd>
+            </div>
+          )}
+          {descuentoMonto > 0 && (
+            <div className="flex justify-between text-emerald-700">
+              <dt>Descuento{tipoDescuento === "%" ? ` (${numero(Math.min(n(descuento), 100))}%)` : ""}</dt>
+              <dd className="tabular-nums">− {dinero(descuentoMonto)}</dd>
+            </div>
+          )}
+          <div className="flex justify-between border-t border-stone-200 pt-1.5 text-base font-semibold">
+            <dt>Total</dt>
+            <dd className="tabular-nums">{dinero(total)}</dd>
+          </div>
+        </dl>
       </section>
 
       {/* Total y guardar: fijo abajo en el celular */}
