@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { Check, Copy, MessageCircle, Send, Users } from "lucide-react";
+import { Check, Copy, MessageCircle, RotateCcw, Send, Users } from "lucide-react";
 import { useDatos } from "../../lib/datos";
 import { useTitulo } from "../../lib/titulo";
 import { Aviso, Encabezado, EstadoCarga, Tarjeta, TituloSeccion, Vacio } from "../../components/ui";
@@ -24,9 +24,8 @@ function useEnviados(texto: string | undefined) {
   });
   const enviados = texto && guardado?.texto === texto ? guardado.ids : [];
 
-  function marcar(id: string) {
+  function guardar(ids: string[]) {
     if (!texto) return;
-    const ids = enviados.includes(id) ? enviados : [...enviados, id];
     setGuardado({ texto, ids });
     try {
       localStorage.setItem(CLAVE, JSON.stringify({ texto, ids }));
@@ -34,13 +33,16 @@ function useEnviados(texto: string | undefined) {
       // Sin almacenamiento: la marca dura mientras la página esté abierta.
     }
   }
-  return { enviados, marcar };
+  const marcar = (id: string) => guardar(enviados.includes(id) ? enviados : [...enviados, id]);
+  const desmarcar = (id: string) => guardar(enviados.filter((e) => e !== id));
+  const reiniciar = () => guardar([]);
+  return { enviados, marcar, desmarcar, reiniciar };
 }
 
 export function ListaPrecios() {
   useTitulo("Enviar lista de precios");
   const { datos, error } = useDatos<DatosLista>("/productos/lista-precios");
-  const { enviados, marcar } = useEnviados(datos?.texto);
+  const { enviados, marcar, desmarcar, reiniciar } = useEnviados(datos?.texto);
   const [copiado, setCopiado] = useState(false);
 
   if (!datos) return <EstadoCarga error={error} />;
@@ -99,22 +101,48 @@ export function ListaPrecios() {
             />
           ) : (
             <>
-              <p className="mb-3 text-sm text-stone-500">Tocá el botón de cada cliente: se abre su chat con el mensaje escrito y vos lo enviás.</p>
+              <p className="mb-3 text-sm text-stone-500">Tocá el botón de cada cliente: se abre su chat con el mensaje escrito y vos lo enviás. Si no llegaste a mandarlo, tocá ↺ y vuelve a quedar como "Enviar".</p>
+              {enviados.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => confirm("¿Reiniciar el envío? Todos los clientes vuelven a quedar sin enviar.") && reiniciar()}
+                  className="boton-secundario mb-3 min-h-9 w-full px-3 py-1.5 text-xs sm:w-auto"
+                >
+                  <RotateCcw className="size-4" /> Reiniciar envío
+                </button>
+              )}
               <ul className="divide-y divide-stone-100">
                 {datos.clientes.map((c) => {
                   const enviado = enviados.includes(c.id);
                   return (
                     <li key={c.id} className="flex items-center justify-between gap-3 py-2">
                       <span className={`min-w-0 truncate font-medium ${enviado ? "text-stone-400" : "text-stone-800"}`}>{c.nombre}</span>
-                      <a
-                        href={c.whatsapp}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => marcar(c.id)}
-                        className={`${enviado ? "boton-secundario" : "boton-whatsapp"} min-h-9 shrink-0 px-3 py-1.5 text-xs`}
-                      >
-                        {enviado ? <Check className="size-4" /> : <MessageCircle className="size-4" />} {enviado ? "Enviado" : "Enviar"}
-                      </a>
+                      {enviado ? (
+                        <span className="flex shrink-0 items-center gap-1">
+                          <span className="boton-secundario pointer-events-none min-h-9 px-3 py-1.5 text-xs">
+                            <Check className="size-4" /> Enviado
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => desmarcar(c.id)}
+                            aria-label={`Marcar a ${c.nombre} como no enviado`}
+                            title="Marcar como no enviado"
+                            className="rounded-lg p-2 text-stone-500 hover:bg-stone-100 hover:text-stone-800"
+                          >
+                            <RotateCcw className="size-4" />
+                          </button>
+                        </span>
+                      ) : (
+                        <a
+                          href={c.whatsapp}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => marcar(c.id)}
+                          className="boton-whatsapp min-h-9 shrink-0 px-3 py-1.5 text-xs"
+                        >
+                          <MessageCircle className="size-4" /> Enviar
+                        </a>
+                      )}
                     </li>
                   );
                 })}
