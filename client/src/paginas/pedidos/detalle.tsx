@@ -1,11 +1,11 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { Ban, CalendarClock, Check, MapPin, MessageCircle, Pencil, Phone, StickyNote, Trash2, User } from "lucide-react";
+import { Ban, CalendarClock, Check, MapPin, MessageCircle, Pencil, Phone, StickyNote, Trash2, User, Wallet, X } from "lucide-react";
 import { api } from "../../lib/api";
 import { useDatos, useEnvio } from "../../lib/datos";
 import { useTitulo } from "../../lib/titulo";
 import { dinero, fechaCorta } from "../../lib/formato";
-import { FLUJO, infoEstado, type EstadoPedido, type Movimiento, type PedidoItem, type PedidoResumen } from "../../lib/tipos";
+import { FLUJO, estadoCobro, infoEstado, type EstadoPedido, type Movimiento, type PedidoItem, type PedidoResumen } from "../../lib/tipos";
 import { Aviso, Encabezado, EstadoBadge, EstadoCarga, Tarjeta, TituloSeccion } from "../../components/ui";
 import { Boton } from "../../components/botones";
 
@@ -29,6 +29,14 @@ export function DetallePedido() {
     if (pregunta && !confirm(pregunta)) return;
     accion.enviar(async () => {
       await api.patch(`/pedidos/${id}/estado`, { estado });
+      recargar();
+    });
+  }
+
+  function borrarPago(m: Movimiento) {
+    if (!confirm(`¿Borrar el pago de ${dinero(m.monto)} del ${fechaCorta(m.fecha)}? También se saca de Finanzas.`)) return;
+    accion.enviar(async () => {
+      await api.delete(`/movimientos/${m.id}`);
       recargar();
     });
   }
@@ -59,6 +67,9 @@ export function DetallePedido() {
       />
 
       {accion.error && <div className="mb-4"><Aviso>{accion.error}</Aviso></div>}
+
+      {/* Cobro: cuánto pagó y cuánto falta */}
+      {!cancelado && Number(pedido.total) > 0 && <ResumenCobro pedido={pedido} />}
 
       {/* Avance del pedido */}
       {!cancelado && (
@@ -166,6 +177,7 @@ export function DetallePedido() {
 
         <div className="space-y-4">
           <Tarjeta>
+            <div id="pagos" className="scroll-mt-4" />
             <TituloSeccion>Pagos</TituloSeccion>
             {pagos.length > 0 && (
               <ul className="mb-4 divide-y divide-stone-100 text-sm">
@@ -178,7 +190,19 @@ export function DetallePedido() {
                         {m.descripcion ? ` · ${m.descripcion.replace("Pago del pedido · ", "")}` : ""}
                       </span>
                     </span>
-                    <span className="font-semibold tabular-nums text-emerald-700">{dinero(m.monto)}</span>
+                    <span className="flex items-start gap-1">
+                      <span className="font-semibold tabular-nums text-emerald-700">{dinero(m.monto)}</span>
+                      <button
+                        type="button"
+                        onClick={() => borrarPago(m)}
+                        disabled={accion.enviando}
+                        title="Borrar este pago"
+                        aria-label="Borrar este pago"
+                        className="-mr-1 rounded-md p-0.5 text-stone-400 hover:bg-rose-50 hover:text-rose-700"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -208,7 +232,7 @@ export function DetallePedido() {
 
 function FormularioPago({ pedidoId, saldo, hoy, alGuardar }: { pedidoId: string; saldo: number; hoy: string; alGuardar: () => void }) {
   const { enviando, error, ok, enviar } = useEnvio();
-  const [monto, setMonto] = useState(saldo > 0 ? String(saldo) : "");
+  const [monto, setMonto] = useState("");
   const [fecha, setFecha] = useState(hoy);
   const [categoria, setCategoria] = useState("Venta");
   const [medio, setMedio] = useState("Transferencia");
@@ -228,12 +252,24 @@ function FormularioPago({ pedidoId, saldo, hoy, alGuardar }: { pedidoId: string;
       {error && <Aviso>{error}</Aviso>}
       {ok && <Aviso tipo="ok">{ok}</Aviso>}
       <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="etiqueta">Monto</span>
+        <label className="col-span-2 block">
+          <span className="etiqueta">¿Cuánto te pagó?</span>
           <div className="relative">
             <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400">$</span>
-            <input value={monto} onChange={(e) => setMonto(e.target.value)} inputMode="decimal" className="campo pl-7" required />
+            <input value={monto} onChange={(e) => setMonto(e.target.value)} inputMode="decimal" className="campo pl-7" placeholder="0" required />
           </div>
+          {saldo > 0 && (
+            <span className="mt-1.5 flex flex-wrap gap-1.5">
+              <button type="button" onClick={() => setMonto(String(saldo))} className="rounded-full border border-stone-300 bg-white px-2.5 py-1 text-xs font-medium text-stone-700 hover:bg-stone-50">
+                Todo lo que falta ({dinero(saldo)})
+              </button>
+              {saldo >= 2 && (
+                <button type="button" onClick={() => setMonto(String(Math.round(saldo / 2)))} className="rounded-full border border-stone-300 bg-white px-2.5 py-1 text-xs font-medium text-stone-700 hover:bg-stone-50">
+                  La mitad ({dinero(Math.round(saldo / 2))})
+                </button>
+              )}
+            </span>
+          )}
         </label>
         <label className="block">
           <span className="etiqueta">Fecha</span>
@@ -257,8 +293,41 @@ function FormularioPago({ pedidoId, saldo, hoy, alGuardar }: { pedidoId: string;
         </label>
       </div>
       <Boton cargando={enviando} className="boton-primario w-full">Registrar pago</Boton>
-      <p className="ayuda text-center">Se suma automáticamente a los ingresos en Finanzas.</p>
+      <p className="ayuda text-center">Podés cobrar en partes: anotá cada pago y lo que falta queda pendiente. Cada pago se suma a los ingresos de Finanzas en su fecha.</p>
     </form>
+  );
+}
+
+function ResumenCobro({ pedido }: { pedido: PedidoResumen }) {
+  const total = Number(pedido.total);
+  const pagado = Number(pedido.pagado);
+  const saldo = Math.max(Number(pedido.saldo), 0);
+  const cobro = estadoCobro(pedido);
+  const porcentaje = Math.min(100, Math.max(0, (pagado / total) * 100));
+  const etiqueta = cobro === "pagado" ? "Pagado completo" : cobro === "parcial" ? "Pago parcial" : "Sin pagos todavía";
+  const color = cobro === "pagado" ? "bg-emerald-100 text-emerald-800" : cobro === "parcial" ? "bg-amber-100 text-amber-800" : "bg-stone-100 text-stone-600";
+  return (
+    <Tarjeta className="mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="inline-flex items-center gap-2 font-semibold text-stone-900">
+          <Wallet className="size-5 text-marca-600" /> Pagó {dinero(pagado)} de {dinero(total)}
+        </p>
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${color}`}>{etiqueta}</span>
+      </div>
+      <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-stone-100" role="progressbar" aria-valuenow={Math.round(porcentaje)} aria-valuemin={0} aria-valuemax={100}>
+        <div className={`h-full rounded-full ${cobro === "pagado" ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${porcentaje}%` }} />
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2 text-sm">
+        {saldo > 0 ? (
+          <>
+            <span className="font-semibold text-rose-700">Falta cobrar {dinero(saldo)}</span>
+            <a href="#pagos" className="font-medium text-marca-700 underline">Anotar un pago</a>
+          </>
+        ) : (
+          <span className="font-medium text-emerald-700">No debe nada.</span>
+        )}
+      </div>
+    </Tarjeta>
   );
 }
 

@@ -72,6 +72,7 @@ export function Inicio() {
                     <p className="truncate font-medium text-stone-900">#{p.numero} · {p.cliente_nombre ?? "Sin cliente"}</p>
                     <p className="text-xs text-stone-500">
                       {dinero(p.total)}
+                      {Number(p.pagado) > 0 && Number(p.saldo) > 0 && <span className="text-amber-700"> · pagó {dinero(p.pagado)}</span>}
                       {Number(p.saldo) > 0 && <span className="text-rose-700"> · debe {dinero(p.saldo)}</span>}
                     </p>
                   </Link>

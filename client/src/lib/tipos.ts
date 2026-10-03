@@ -94,6 +94,12 @@ export type PedidoResumen = {
   saldo: number;
 };
 
+/** Cómo viene el cobro de un pedido: sin pagos, pagado en parte o pagado completo. */
+export function estadoCobro(p: Pick<PedidoResumen, "pagado" | "saldo">): "sin_pago" | "parcial" | "pagado" {
+  if (Number(p.saldo) <= 0) return "pagado";
+  return Number(p.pagado) > 0 ? "parcial" : "sin_pago";
+}
+
 export type PedidoItem = {
   id: string;
   producto_id: string | null;

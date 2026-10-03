@@ -3,7 +3,7 @@ import { CalendarClock, ChevronRight, ClipboardList, Plus } from "lucide-react";
 import { useDatos } from "../../lib/datos";
 import { useTitulo } from "../../lib/titulo";
 import { dinero, fechaCorta } from "../../lib/formato";
-import { ESTADOS, type PedidoResumen } from "../../lib/tipos";
+import { ESTADOS, estadoCobro, type PedidoResumen } from "../../lib/tipos";
 import { Encabezado, EstadoBadge, EstadoCarga, Vacio } from "../../components/ui";
 
 const FILTROS = [
@@ -86,10 +86,13 @@ export function Pedidos() {
                   <div className="text-right">
                     <p className="font-semibold tabular-nums">{dinero(p.total)}</p>
                     {p.estado !== "cancelado" &&
-                      (Number(p.saldo) > 0 ? (
-                        <p className="text-xs font-medium text-rose-700">Debe {dinero(p.saldo)}</p>
-                      ) : (
+                      (estadoCobro(p) === "pagado" ? (
                         <p className="text-xs font-medium text-emerald-700">Pagado</p>
+                      ) : (
+                        <>
+                          {estadoCobro(p) === "parcial" && <p className="text-xs text-amber-700">Pagó {dinero(p.pagado)}</p>}
+                          <p className="text-xs font-medium text-rose-700">Debe {dinero(p.saldo)}</p>
+                        </>
                       ))}
                   </div>
                   <ChevronRight className="size-4 shrink-0 text-stone-400" />
