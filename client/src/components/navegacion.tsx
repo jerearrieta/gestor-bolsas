@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router";
-import { Home, ClipboardList, Users, Tag, Wallet, Calculator, Settings } from "lucide-react";
+import { Home, ClipboardList, Users, Tag, Wallet, Settings } from "lucide-react";
 
 const PRINCIPALES = [
   { href: "/", etiqueta: "Inicio", icono: Home },
@@ -10,13 +10,11 @@ const PRINCIPALES = [
 ];
 
 const EXTRAS = [
-  { href: "/catalogo/calculadora", etiqueta: "Calculadora de costos", icono: Calculator },
   { href: "/ajustes", etiqueta: "Ajustes", icono: Settings },
 ];
 
 function activo(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
-  if (href === "/catalogo") return pathname.startsWith("/catalogo") && !pathname.startsWith("/catalogo/calculadora");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -62,7 +60,7 @@ export function BarraLateral({ negocio }: { negocio: string }) {
   );
 }
 
-/** Barra superior en el celular (nombre + accesos a calculadora y ajustes). */
+/** Barra superior en el celular (nombre + acceso a ajustes). */
 export function BarraSuperior({ negocio }: { negocio: string }) {
   const { pathname } = useLocation();
   return (

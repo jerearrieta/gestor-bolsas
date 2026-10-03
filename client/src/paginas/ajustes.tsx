@@ -1,15 +1,13 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router";
-import { Calculator, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { api } from "../lib/api";
 import { supabase } from "../lib/supabase";
 import { useSesion } from "../lib/sesion";
 import { useEnvio } from "../lib/datos";
 import { useTitulo } from "../lib/titulo";
 import { useMarco } from "../components/marco";
-import { dinero, numero } from "../lib/formato";
 import type { Ajustes as TipoAjustes } from "../lib/tipos";
-import { Aviso, Cargando, Encabezado, Tarjeta } from "../components/ui";
+import { Aviso, Cargando, Encabezado } from "../components/ui";
 import { Boton } from "../components/botones";
 
 /** Reemplaza {nombre}, {pedido}, etc. para la vista previa. */
@@ -28,17 +26,6 @@ export function Ajustes() {
       <Encabezado titulo="Ajustes" subtitulo={`Sesión iniciada como ${sesion?.user.email}`} />
       <div className="space-y-4">
         <FormularioAjustes ajustes={ajustes} alGuardar={recargarAjustes} />
-        <Tarjeta className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-semibold text-stone-900">Costos para la calculadora</p>
-            <p className="text-sm text-stone-500">
-              Lienzo a {dinero(ajustes.precio_metro_lienzo)} el metro · margen objetivo {numero(ajustes.margen_objetivo)}%
-            </p>
-          </div>
-          <Link to="/catalogo/calculadora" className="boton-secundario">
-            <Calculator className="size-4" /> Cambiar
-          </Link>
-        </Tarjeta>
         <div className="flex justify-center pt-4">
           <button type="button" onClick={() => supabase.auth.signOut()} className="boton-secundario">
             <LogOut className="size-4" /> Cerrar sesión

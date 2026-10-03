@@ -14,7 +14,6 @@ import { NuevoCliente, EditarCliente } from "./paginas/clientes/formulario";
 import { DetalleCliente } from "./paginas/clientes/detalle";
 import { Catalogo } from "./paginas/catalogo/lista";
 import { NuevoProducto, EditarProducto } from "./paginas/catalogo/formulario";
-import { Calculadora } from "./paginas/catalogo/calculadora";
 import { ListaPrecios } from "./paginas/catalogo/lista-precios";
 import { Finanzas } from "./paginas/finanzas";
 import { Ajustes } from "./paginas/ajustes";
@@ -38,7 +37,6 @@ createRoot(document.getElementById("root")!).render(
             <Route path="clientes/:id/editar" element={<EditarCliente />} />
             <Route path="catalogo" element={<Catalogo />} />
             <Route path="catalogo/nuevo" element={<NuevoProducto />} />
-            <Route path="catalogo/calculadora" element={<Calculadora />} />
             <Route path="catalogo/lista-precios" element={<ListaPrecios />} />
             <Route path="catalogo/:id" element={<EditarProducto />} />
             <Route path="finanzas" element={<Finanzas />} />

@@ -152,7 +152,7 @@ productos.put("/:id", async (req, res) => {
   res.json({ id: req.params.id });
 });
 
-/** Cambio rápido del precio de una medida (catálogo y calculadora). */
+/** Cambio rápido del precio de una medida (catálogo). */
 productos.patch("/medidas/:id/precio", async (req, res) => {
   const { supabase } = sesion(res);
   const { precio } = z.object({ precio: monto }).parse(req.body);
@@ -160,16 +160,6 @@ productos.patch("/medidas/:id/precio", async (req, res) => {
   siFalla(error, "No se pudo actualizar el precio");
   if (!data?.length) throw noEncontrado("Medida");
   res.json({ id: req.params.id, precio });
-});
-
-/** Metros de lienzo y otros costos de una medida (calculadora), para calcular su precio sugerido. */
-productos.patch("/medidas/:id/costos", async (req, res) => {
-  const { supabase } = sesion(res);
-  const costos = z.object({ metros_lienzo: monto, otros_costos: monto }).parse(req.body);
-  const { data, error } = await supabase.from("producto_medidas").update(costos).eq("id", req.params.id).select("id");
-  siFalla(error, "No se pudieron guardar los costos");
-  if (!data?.length) throw noEncontrado("Medida");
-  res.json({ id: req.params.id, ...costos });
 });
 
 productos.delete("/:id", async (req, res) => {

@@ -1,10 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { Calculator, Check, Loader2, Pencil, Plus, Send, Tag, TrendingUp } from "lucide-react";
+import { Check, Loader2, Pencil, Plus, Send, Tag, TrendingUp } from "lucide-react";
 import { api } from "../../lib/api";
 import { useDatos, useEnvio } from "../../lib/datos";
 import { useTitulo } from "../../lib/titulo";
-import { dinero, numero } from "../../lib/formato";
 import type { DatosCatalogo } from "../../lib/catalogo";
 import { nombreConMedida, type Medida, type Producto } from "../../lib/tipos";
 import { Aviso, Encabezado, EstadoCarga, Vacio } from "../../components/ui";
@@ -23,9 +22,6 @@ export function Catalogo() {
           <>
             <Link to="/catalogo/lista-precios" className="boton-secundario">
               <Send className="size-4" /> Enviar lista
-            </Link>
-            <Link to="/catalogo/calculadora" className="boton-secundario">
-              <Calculator className="size-4" /> Calculadora
             </Link>
             <Link to="/catalogo/nuevo" className="boton-primario">
               <Plus className="size-4" /> Nuevo producto
@@ -114,13 +110,6 @@ function FilaMedida({ producto, medida: m, alGuardar }: { producto: string; medi
         </button>
       </form>
       {error && <p className="mt-1 text-xs text-rose-700">{error}</p>}
-      {m.costo > 0 && (
-        <p className="mt-1 pl-22 text-xs text-stone-500">
-          Costo {dinero(m.costo)} · margen{" "}
-          <span className={`font-semibold ${m.margen_bajo ? "text-rose-700" : "text-emerald-700"}`}>{numero(m.margen_real, 1)}%</span>
-          {m.margen_bajo && " (bajo tu objetivo)"}
-        </p>
-      )}
     </li>
   );
 }
