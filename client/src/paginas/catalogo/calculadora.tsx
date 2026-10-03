@@ -25,16 +25,14 @@ export function Calculadora() {
         subtitulo="Poné cuánto te cuesta el metro de lienzo y te decimos a cuánto vender cada bolsa."
         volver="/catalogo"
       />
-      <div className="max-w-xl">
-        <CostosBase
-          precioMetro={precioMetro}
-          margen={margen}
-          alGuardar={() => {
-            recargar();
-            recargarAjustes();
-          }}
-        />
-      </div>
+      <CostosBase
+        precioMetro={precioMetro}
+        margen={margen}
+        alGuardar={() => {
+          recargar();
+          recargarAjustes();
+        }}
+      />
 
       <section className="mt-6">
         <h2 className="mb-1 font-semibold text-stone-900">2. Precios sugeridos de tu catálogo</h2>
