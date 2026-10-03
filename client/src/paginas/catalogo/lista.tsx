@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { Calculator, Check, Loader2, Pencil, Plus, Tag, TrendingUp } from "lucide-react";
+import { Calculator, Check, Loader2, Pencil, Plus, Send, Tag, TrendingUp } from "lucide-react";
 import { api } from "../../lib/api";
 import { useDatos, useEnvio } from "../../lib/datos";
 import { useTitulo } from "../../lib/titulo";
@@ -21,6 +21,9 @@ export function Catalogo() {
         subtitulo="Cada producto con sus medidas. Cambiá un precio y tocá ✓ para guardarlo."
         acciones={
           <>
+            <Link to="/catalogo/lista-precios" className="boton-secundario">
+              <Send className="size-4" /> Enviar lista
+            </Link>
             <Link to="/catalogo/calculadora" className="boton-secundario">
               <Calculator className="size-4" /> Calculadora
             </Link>
@@ -150,7 +153,12 @@ function AumentoMasivo({ alTerminar }: { alTerminar: () => void }) {
       </summary>
       <form onSubmit={aplicar} className="space-y-3 border-t border-stone-100 px-4 py-4">
         {error && <Aviso>{error}</Aviso>}
-        {ok && <Aviso tipo="ok">{ok}</Aviso>}
+        {ok && (
+          <Aviso tipo="ok">
+            {ok}{" "}
+            <Link to="/catalogo/lista-precios" className="font-semibold underline">Mandales la lista nueva a tus clientes</Link>
+          </Aviso>
+        )}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <div>
             <label htmlFor="porcentaje" className="etiqueta">Porcentaje</label>
