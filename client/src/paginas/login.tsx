@@ -7,7 +7,7 @@ import { Aviso } from "../components/ui";
 import { Boton } from "../components/botones";
 
 export function Login() {
-  const { sesion } = useSesion();
+  const { sesion, sinConexion } = useSesion();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { enviando, error, enviar } = useEnvio();
@@ -36,6 +36,9 @@ export function Login() {
         </div>
         <form onSubmit={ingresar} className="tarjeta space-y-4 p-5 sm:p-6">
           {error && <Aviso>{error}</Aviso>}
+          {!error && sinConexion && (
+            <Aviso>No se pudo conectar con la base de datos. Probá de nuevo en un rato; si sigue igual, revisá que el proyecto de Supabase no esté pausado.</Aviso>
+          )}
           <div>
             <label htmlFor="email" className="etiqueta">Email</label>
             <input id="email" type="email" autoComplete="email" required className="campo" placeholder="tu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
