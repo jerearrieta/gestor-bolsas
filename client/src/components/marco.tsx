@@ -16,7 +16,7 @@ export function Marco() {
     window.scrollTo(0, 0);
   }, [pathname]);
 
-  if (cargando) return null;
+  if (cargando) return <p className="p-6 text-center text-sm text-stone-500">Cargando…</p>;
   if (!sesion) return <Navigate to="/login" replace />;
   return <MarcoConSesion />;
 }
